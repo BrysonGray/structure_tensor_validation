@@ -12,12 +12,10 @@ Author: Bryson Gray
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
-import torch
 import pandas as pd
 from scipy.ndimage import gaussian_filter
 from scipy.linalg import expm
 from tqdm.contrib import itertools as tqdm_itertools
-
 from periodic_kmeans.periodic_kmeans import PeriodicKMeans
 import histology
 import apsym_kmeans
@@ -468,10 +466,9 @@ def run_tests(derivative_sigmas, tensor_sigmas, nIs, angles, periods=[10], blur_
                 crop_end = round(anisotropy_ratio) - 1
                 error = sta_test(I, derivative_sigma, tensor_sigma, true_thetas=angle, crop=crop_all, crop_end=crop_end)
 
-                new_row = {'derivative_sigma': derivative_sigma, 'tensor_sigma': tensor_sigma,
-                            'anisotropy_ratio': anisotropy_ratio, 'period': period, 'width': 1,
-                            'angles': [angle], 'error': error
-                        }
+                new_row = {'derivative_sigma': derivative_sigma, 'tensor_sigma': tensor_sigma, 'anisotropy_ratio': anisotropy_ratio,
+                           'period': period, 'angles': [angle], 'error': error
+                          }
                 error_df = pd.concat((error_df, pd.DataFrame(new_row)), ignore_index=True)
 
     return error_df

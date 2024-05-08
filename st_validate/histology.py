@@ -15,12 +15,6 @@ from skimage.transform import resize
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-import argparse
-import h5py
-from dipy.core.sphere import disperse_charges, Sphere, HemiSphere
-from dipy.reconst.shm import sh_to_sf_matrix
-# from fibermetric.utils import interp, read_matrix_data
-from utils import interp, read_matrix_data
 import apsym_kmeans
 from periodic_kmeans.periodic_kmeans import PeriodicKMeans
 

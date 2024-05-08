@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """ 
-Compute k-means on antipodally symmetric (apsym) directions. Each sample gets equal weight.
+Compute k-means on antipodally symmetric (apsym) directions. Each sample gets equal weight. 
 
 Author: Bryson Gray
 2023
@@ -15,7 +15,6 @@ from sklearn.utils import check_array, check_random_state
 from sklearn.utils._param_validation import Interval, StrOptions
 from sklearn.utils.extmath import row_norms
 from sklearn.utils.validation import (
-    _check_sample_weight,
     _is_arraylike_not_scalar,
 )
 from sklearn.cluster import _kmeans
@@ -94,11 +93,8 @@ def _kmeans_single_lloyd(
 
     Parameters
     ----------
-    X : {ndarray, sparse matrix} of shape (n_samples, n_features) # TODO: never sparse
-        The observations to cluster. If sparse matrix, must be in CSR format.
-
-    sample_weight : ndarray of shape (n_samples,) # TODO: Weights not yet implemented.
-        The weights for each observation in X.
+    X : ndarray of shape (n_samples, n_features)
+        The observations to cluster.
 
     centers_init : ndarray of shape (n_clusters, n_features)
         The initial centers.
@@ -115,11 +111,6 @@ def _kmeans_single_lloyd(
         convergence.
         It's not advised to set `tol=0` since convergence might never be
         declared due to rounding errors. Use a very small number instead.
-
-    n_threads : int, default=1 # TODO: Not using multithreading for now
-        The number of OpenMP threads to use for the computation. Parallelism is
-        sample-wise on the main cython loop which assigns each sample to its
-        closest center.
 
     Returns
     -------
@@ -144,33 +135,11 @@ def _kmeans_single_lloyd(
     centers_new = np.zeros_like(centers)
     labels = np.full(X.shape[0], -1, dtype=np.int32)
     labels_old = labels.copy()
-    # weight_in_clusters = np.zeros(n_clusters, dtype=X.dtype)
     center_shift = np.zeros(n_clusters, dtype=X.dtype)
-
-    # if sp.issparse(X):
-    #     lloyd_iter = lloyd_iter_chunked_sparse
-    #     _inertia = _inertia_sparse
-    # else:
-        # lloyd_iter = lloyd_iter_chunked_dense
-        # _inertia = _inertia_dense
 
     strict_convergence = False
 
-    # Threadpoolctl context to limit the number of threads in second level of
-    # nested parallelism (i.e. BLAS) to avoid oversubscription.
-    # with threadpool_limits(limits=1, user_api="blas"):
-    # TODO: Not using multithreading. Possibly add this in later
     for i in range(max_iter):
-        # lloyd_iter(
-        #     X,
-        #     sample_weight,
-        #     centers,
-        #     centers_new,
-        #     weight_in_clusters,
-        #     labels,
-        #     center_shift,
-        #     n_threads,
-        # )
         X, labels, dist, centers_new, center_shift = _apsym_lloyd_iter(X, centers)
 
         if verbose:
@@ -199,18 +168,7 @@ def _kmeans_single_lloyd(
         labels_old[:] = labels
 
     if not strict_convergence:
-        # rerun E-step so that predicted labels match cluster centers
-        # lloyd_iter(
-        #     X,
-        #     sample_weight,
-        #     centers,
-        #     centers,
-        #     weight_in_clusters,
-        #     labels,
-        #     center_shift,
-        #     n_threads,
-        #     update_centers=False,
-        # )
+        # rerun E-step
         X, labels, dist = _apsym_lloyd_iter(X, centers, update_centers=False)
 
     inertia = _inertia(dist)
@@ -273,33 +231,6 @@ class APSymKMeans():
         Determines random number generation for centroid initialization. Use
         an int to make the randomness deterministic.
 
-    copy_x : bool, default=True # TODO: remove this
-        When pre-computing distances it is more numerically accurate to center
-        the data first. If copy_x is True (default), then the original data is
-        not modified. If False, the original data is modified, and put back
-        before the function returns, but small numerical differences may be
-        introduced by subtracting and then adding the data mean. Note that if
-        the original data is not C-contiguous, a copy will be made even if
-        copy_x is False. If the original data is sparse, but not in CSR format,
-        a copy will be made even if copy_x is False.
-
-    algorithm : {"lloyd", "elkan", "auto", "full"}, default="lloyd" # TODO: remove. We will only use lloyd
-        K-means algorithm to use. The classical EM-style algorithm is `"lloyd"`.
-        The `"elkan"` variation can be more efficient on some datasets with
-        well-defined clusters, by using the triangle inequality. However it's
-        more memory intensive due to the allocation of an extra array of shape
-        `(n_samples, n_clusters)`.
-
-        `"auto"` and `"full"` are deprecated and they will be removed in
-        Scikit-Learn 1.3. They are both aliases for `"lloyd"`.
-
-        .. versionchanged:: 0.18
-            Added Elkan algorithm
-
-        .. versionchanged:: 1.1
-            Renamed "full" to "lloyd", and deprecated "auto" and "full".
-            Changed "auto" to use "lloyd" instead of "elkan".
-
     Attributes
     ----------
     cluster_centers_ : ndarray of shape (n_clusters, n_features)
@@ -351,8 +282,7 @@ class APSymKMeans():
         tol=1e-4,
         verbose=0,
         random_state=None,
-        # copy_x=True, # TODO: remove
-        # algorithm="lloyd", # TODO: remove
+
     ):
         self.n_clusters = n_clusters
         self.init = init
@@ -380,7 +310,6 @@ class APSymKMeans():
         self._tol = self._tolerance(X, self.tol)
 
         # n-init
-        # TODO(1.4): Remove
         if self.n_init == "auto":
             if isinstance(self.init, str) and self.init == "k-means++":
                 self.n_init = 1
@@ -410,8 +339,7 @@ class APSymKMeans():
         init,
         random_state,
         init_size=None,
-        n_centroids=None,
-        # sample_weight=None,
+        n_centroids=None
     ):
         """Compute the initial centroids.
 
@@ -422,7 +350,7 @@ class APSymKMeans():
 
         x_squared_norms : ndarray of shape (n_samples,)
             Squared euclidean norm of each data point. Pass it if you have it
-            at hands already to avoid it being recomputed here.
+            at hand already to avoid it being recomputed here.
 
         init : {'k-means++', 'random'}, callable or ndarray of shape \
                 (n_clusters, n_features)
@@ -441,11 +369,6 @@ class APSymKMeans():
             If left to 'None' the number of centroids will be equal to
             number of clusters to form (self.n_clusters)
 
-        sample_weight : ndarray of shape (n_samples,), default=None
-            The weights for each observation in X. If None, all observations
-            are assigned equal weight. `sample_weight` is not used during
-            initialization if `init` is a callable or a user provided array.
-
         Returns
         -------
         centers : ndarray of shape (n_clusters, n_features)
@@ -458,23 +381,21 @@ class APSymKMeans():
             X = X[init_indices]
             x_squared_norms = x_squared_norms[init_indices]
             n_samples = X.shape[0]
-            # sample_weight = sample_weight[init_indices]
 
         if isinstance(init, str) and init == "k-means++":
             centers, _ = _kmeans._kmeans_plusplus(
                 X,
                 n_clusters,
+                sample_weight=np.ones(len(X)),
                 random_state=random_state,
-                x_squared_norms=x_squared_norms,
-                # sample_weight=sample_weight,
+                x_squared_norms=x_squared_norms
             )
             centers = centers / row_norms(centers)[:,None]
         elif isinstance(init, str) and init == "random":
             seeds = random_state.choice(
                 n_samples,
                 size=n_clusters,
-                replace=False,
-                # p=sample_weight / sample_weight.sum(),
+                replace=False
             )
             centers = X[seeds]
         elif _is_arraylike_not_scalar(self.init):
@@ -484,52 +405,27 @@ class APSymKMeans():
             centers = check_array(centers, dtype=X.dtype, copy=False, order="C")
             self._validate_center_shape(X, centers)
 
-        # if sp.issparse(centers):
-        #     centers = centers.toarray()
-
         return centers
 
-    # @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X, y=None, sample_weight=None):
+    def fit(self, X):
         """Compute k-means clustering.
 
         Parameters
         ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features) # TODO: this will never be sparse.
+        X : array-like of shape (n_samples, n_features)
             Training instances to cluster. It must be noted that the data
             will be converted to C ordering, which will cause a memory
             copy if the given data is not C-contiguous.
-            If a sparse matrix is passed, a copy will be made if it's not in
-            CSR format.
-
-        y : Ignored
-            Not used, present here for API consistency by convention.
-
-        sample_weight : array-like of shape (n_samples,), default=None
-            The weights for each observation in X. If None, all observations
-            are assigned equal weight. `sample_weight` is not used during
-            initialization if `init` is a callable or a user provided array.
 
         Returns
         -------
         self : object
             Fitted estimator.
         """
-        # TODO: probably not necessary. check to make sure
-        # X = self._validate_data(
-        #     X,
-        #     accept_sparse="csr",
-        #     dtype=[np.float64, np.float32],
-        #     order="C",
-        #     copy=self.copy_x,
-        #     accept_large_sparse=False,
-        # )
 
         self._check_params_vs_input(X)
 
         random_state = check_random_state(self.random_state)
-        # sample_weight = _check_sample_weight(sample_weight, X, dtype=X.dtype)
-        # self._n_threads = _openmp_effective_n_threads() # TODO: Remove. Use single thread.
 
         # Validate init array
         init = self.init
@@ -538,23 +434,8 @@ class APSymKMeans():
             init = check_array(init, dtype=X.dtype, copy=True, order="C")
             self._validate_center_shape(X, init)
 
-        # subtract of mean of x for more accurate distance computations
-        # if not sp.issparse(X):
-        #     X_mean = X.mean(axis=0)
-        #     # The copy was already done above
-        #     X -= X_mean
-
-        #     if init_is_array_like:
-        #         init -= X_mean
-
         # precompute squared norms of data points
         x_squared_norms = row_norms(X, squared=True)
-
-        # if self._algorithm == "elkan":
-        #     kmeans_single = _kmeans_single_elkan
-        # else:
-        #     kmeans_single = _kmeans_single_lloyd
-        #     self._check_mkl_vcomp(X, X.shape[0])
 
         best_inertia, best_labels = None, None
 
@@ -564,22 +445,11 @@ class APSymKMeans():
                 X,
                 x_squared_norms=x_squared_norms,
                 init=init,
-                random_state=random_state,
-                # sample_weight=sample_weight,
+                random_state=random_state
             )
             if self.verbose:
                 print("Initialization complete")
 
-            # run a k-means once
-            # labels, inertia, centers, n_iter_ = kmeans_single(
-            #     X,
-            #     sample_weight,
-            #     centers_init,
-            #     max_iter=self.max_iter,
-            #     verbose=self.verbose,
-            #     tol=self._tol,
-            #     n_threads=self._n_threads,
-            # )
             labels, inertia, centers, n_iter_ = _kmeans_single_lloyd(
                 X,
                 centers_init,
@@ -588,11 +458,7 @@ class APSymKMeans():
                 tol=self._tol,
             )
 
-            # determine if these results are the best so far
-            # we chose a new run if it has a better inertia and the clustering is
-            # different from the best so far (it's possible that the inertia is
-            # slightly better even if the clustering is the same with potentially
-            # permuted labels, due to rounding errors)
+
             if best_inertia is None or (
                 inertia < best_inertia
                 and not _is_same_clustering(labels, best_labels, self.n_clusters)
@@ -601,11 +467,6 @@ class APSymKMeans():
                 best_centers = centers
                 best_inertia = inertia
                 best_n_iter = n_iter_
-
-        # if not sp.issparse(X):
-        #     if not self.copy_x:
-        #         X += X_mean
-        #     best_centers += X_mean
 
         distinct_clusters = len(set(best_labels))
         if distinct_clusters < self.n_clusters:
