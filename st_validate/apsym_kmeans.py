@@ -386,7 +386,6 @@ class APSymKMeans():
             centers, _ = _kmeans._kmeans_plusplus(
                 X,
                 n_clusters,
-                sample_weight=np.ones(len(X)),
                 random_state=random_state,
                 x_squared_norms=x_squared_norms
             )
