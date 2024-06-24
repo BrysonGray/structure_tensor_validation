@@ -39,4 +39,4 @@ Open the Jupyter notebook run_st_analysis_validation.ipynb for an example walkth
 ## Supplementary Data
 The unaltered output data from structure tensor analysis validation is located in the outputs folder. These are stored in comma separated files where each row corresponds to a different parameter configuration. The phantom and structure tensor analysis parameters are listed in the first columns and the resulting error for each setting is in the last column.
 
-The example_microscopy_data folder contains the two example microscopy patches &mdash one 2D and one 3D &mdash that were used to illustrate the relationship between simulated phantoms and real image data.
+The example_microscopy_data folder contains the two example microscopy patches -- one 2D and one 3D -- that were used to illustrate the relationship between simulated phantoms and real image data.
