@@ -368,7 +368,6 @@ def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coo
     if ylabel is not None:
         ax_image.set_ylabel(ylabel, fontsize=24)
 
-    
     if angles is not None:
         angles_flat = angles.flatten()
         angles_ = np.where(angles_flat<0, angles_flat+np.pi, angles_flat-np.pi)
@@ -392,7 +391,6 @@ def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coo
         ax_polar.grid(False)
         if not axis:
             ax_polar.axis('off')
-
 
     if means is not None:
         if means.shape==():
@@ -427,11 +425,11 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False):
 
     Parameters
     ----------
-    vectors : array_like
-        The sequence of angles as three-dimensional vectors with components along the last axis.
     image : array_like
         3D grayscale image volume array.
-    plot_means : bool, defaults to False.
+    vectors : array_like
+        The sequence of angles as three-dimensional vectors with components along the last axis.
+    means : array_like
 
     """
     if mip:
@@ -459,9 +457,9 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False):
         for i in range(3):
             angles_2d.append(vec_to_theta(vec_2d[i]))
     
-    mu_2d = []
-    colors = []
     if means is not None:
+        mu_2d = []
+        colors = []
         # project into orthogonal planes. Resulting shape is (3, n_clusters, 2)
         for m in means: # for each mean append the (3,2) array representing one 2d vector per orthogonal plane
             mu_2d.append([[m[0], m[1]],
@@ -470,6 +468,9 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False):
         mu_2d = np.array(mu_2d) # shape (n_clusters, 3, 2)
         mu_2d = np.transpose(mu_2d, (1,0,2)) # shape (3, n_clusters, 2)
         colors = np.abs(means)
+    else:
+        mu_2d = [None,None,None]
+        colors = None
 
     fig = plt.figure()
 
@@ -479,6 +480,7 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False):
     # titles = ["x-y", "x-z", "y-z"]
     xlabels = ["X", "X", "Y"]
     ylabels = ["Y", "Z", "Z"]
+
     for i in range(3):
         if vectors is not None:
             plot_angles(image=I_ortho[i], angles=angles_2d[i], means=mu_2d[i], axes_coords=axes_coords_list[i], fig=fig, show=False, title=None, xlabel=xlabels[i], ylabel=ylabels[i], colors=colors)

@@ -180,9 +180,9 @@ def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
             I = np.exp(-alpha*I)
 
         if blur_correction:
-            I = anisotropy_correction(I, d, labels, blur=blur)
+            I = anisotropy_correction(I, d, blur=blur)
         elif interp:
-            I = anisotropy_correction(I, d, labels)
+            I = anisotropy_correction(I, d)
 
         if crop is not None:
             if crop > 0:
@@ -287,11 +287,10 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, patch_size=Non
                 angles = angles[crop:-(crop+crop_end), crop:-crop]
         if patch_size is not None:
             # gather angles into non-overlapping patches
-            angles_ = angles[...,None]
             angles_ = gather(angles[...,None], patch_size=patch_size)
             angles_ = angles_.squeeze(axis=-1)
         else:
-            angles_ = angles.reshape(-1,dim)[None,None]
+            angles_ = angles.flatten()[None,None]
 
         # Estimate kmeans centers and errors for each tile.
         diff = np.zeros(angles_.shape[:2])
@@ -300,7 +299,7 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, patch_size=Non
                 angles_tile = angles_[i,j][~np.isnan(angles_[i,j])]
                 angles_tile = np.where(angles_tile < 0, angles_tile + np.pi, angles_tile) # flip angles to be in the range [0,pi] for periodic kmeans
                 if len(true_thetas) == 1:
-                    mu_ = histology.periodic_mean(angles_tile.flatten()[...,None], period=np.pi)
+                    mu_ = histology.periodic_mean(angles_tile[...,None], period=np.pi)
                 elif len(true_thetas) == 2:
                     periodic_kmeans = PeriodicKMeans(angles_tile[...,None], period=np.pi, no_of_clusters=2)
                     _, _, centers = periodic_kmeans.clustering()
