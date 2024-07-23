@@ -16,7 +16,6 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import apsym_kmeans
-from periodic_kmeans.periodic_kmeans import PeriodicKMeans
 
 
 os.environ["OPENCV_IO_MAX_IMAGE_PIXELS"] = pow(2,40).__str__()
@@ -152,19 +151,25 @@ def angles(S, cartesian=False):
     Returns
     -------
     angles : ndarray
-        Array of values between -pi/2 and pi/2.
+        For S of shape (...,2,2), returns an array of values between -pi/2 and pi/2.
+        For S of shape (...,3,3), returns an array of shape (...,2) where the first
+        element of the last dimension is the angle from the +z axis with range [0,pi],
+        and the second element is the counterclockwise angle from the +y axis with
+        range [-pi/2, pi/2]. If cartesian == True, the output is an array of the principal
+        eigenvectors of S in x-y-z (col-row-slice) order.
+
     """
     w,v = np.linalg.eigh(S)
     v = v[...,-1] # the principal eigenvector is always the last one since they are ordered by least to greatest eigenvalue.
     # Remember that structure tensors are in x-y-z order (i.e. col-row-slice instead of slice-row-col).
+    if cartesian:
+        return v
+    
     if w.shape[-1] == 2:
-        if cartesian:
-            return v
-        theta = np.arctan(v[...,0] / (v[...,1] + np.finfo(float).eps)) # x/y gives the counterclockwise angle from the vertical direction (y axis).
+        theta = np.arctan(v[...,0] / (v[...,1] + np.finfo(float).eps)) # x/y gives the counterclockwise angle from the vertical direction (y axis). Range [-pi/2, pi/2]
         return theta
+    
     else:
-        if cartesian:
-            return v
         x = v[...,0]
         y = v[...,1]
         z = v[...,2]
@@ -263,24 +268,47 @@ def vec_to_theta(vec):
     return np.arctan(vec[...,0] / (vec[...,1] + np.finfo(float).eps))
 
 
+# def periodic_mean(points, period=180):
+#     period_2 = period/2
+#     if max(points) - min(points) > period_2:
+#         _points = np.array([0 if x > period_2 else 1 for x in points]).reshape(-1,1)
+#         n_left =_points.sum()
+#         n_right = len(points) - n_left
+#         if n_left >0:
+#             mean_left = (points * _points).sum()/n_left
+#         else:
+#             mean_left =0
+#         if n_right >0:
+#             mean_right = (points * (1-_points)).sum() / n_right
+#         else:
+#             mean_right = 0
+#         _mean = (mean_left*n_left+mean_right*n_right+n_left*period)/(n_left+n_right)
+#         return np.array([_mean % period])
+#     else:
+#         return points.mean(axis=0)
+
 def periodic_mean(points, period=180):
-    period_2 = period/2
-    if max(points) - min(points) > period_2:
-        _points = np.array([0 if x > period_2 else 1 for x in points]).reshape(-1,1)
-        n_left =_points.sum()
-        n_right = len(points) - n_left
-        if n_left >0:
-            mean_left = (points * _points).sum()/n_left
+
+    half_period = period/2
+    is_left = np.array([0 if x > half_period else 1 for x in points])
+    
+    n_left = is_left.sum()
+    n_right = len(points) - n_left
+
+    if n_left > 0 and n_right > 0:
+
+        mean_left = (points * is_left).sum() / n_left
+        mean_right = (points * (1-is_left)).sum() / n_right
+
+        if mean_right - mean_left <= period/2:
+            mean = (n_left*mean_left + n_right*mean_right)/len(points)
         else:
-            mean_left =0
-        if n_right >0:
-            mean_right = (points * (1-_points)).sum() / n_right
-        else:
-            mean_right = 0
-        _mean = (mean_left*n_left+mean_right*n_right+n_left*period)/(n_left+n_right)
-        return np.array([_mean % period])
+            mean = (n_left*(mean_left + period) + n_right*mean_right)/len(points) % period
+    
     else:
-        return points.mean(axis=0)
+        mean = points.sum()/len(points)
+    
+    return mean
 
 
 def spherical_kmeans(vectors, n_clusters, cartesian=True):
@@ -313,21 +341,23 @@ def spherical_kmeans(vectors, n_clusters, cartesian=True):
 
     return means
 
-def circular_kmeans(angles, n_clusters):
 
-    angles = angles.flatten()
-    angles = angles[~np.isnan(angles)]
-    angles = np.where(angles < 0, angles + np.pi, angles) # flip angles to be in the range [0,pi] for periodic kmeans
-    if n_clusters==1:
-        means = periodic_mean(angles[...,None], period=np.pi)
-    elif n_clusters > 1:
-        periodic_kmeans = PeriodicKMeans(angles[...,None], period=np.pi, no_of_clusters=n_clusters)
-        _, _, centers = periodic_kmeans.clustering()
-        means = np.array(centers).squeeze()
-    else:
-        raise ValueError(f'n_clusters must be greater than or equal to 1, but got {n_clusters}')
+# Deprecated: to be removed TODO
+# def circular_kmeans(angles, n_clusters):
+
+#     angles = angles.flatten()
+#     angles = angles[~np.isnan(angles)]
+#     angles = np.where(angles < 0, angles + np.pi, angles) # flip angles to be in the range [0,pi] for periodic kmeans
+#     if n_clusters==1:
+#         means = periodic_mean(angles[...,None], period=np.pi)
+#     elif n_clusters > 1:
+#         periodic_kmeans = PeriodicKMeans(angles[...,None], period=np.pi, no_of_clusters=n_clusters)
+#         _, _, centers = periodic_kmeans.clustering()
+#         means = np.array(centers).squeeze()
+#     else:
+#         raise ValueError(f'n_clusters must be greater than or equal to 1, but got {n_clusters}')
     
-    return means
+#     return means
 
 
 def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coords=[0.1, 0.1, 0.8, 0.8], fig=None, show=True, title=None, xlabel=None, ylabel=None, colors=None):

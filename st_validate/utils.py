@@ -3,104 +3,92 @@
 """Utils.py : Helper functions."""
 
 import numpy as np
-import torch
-from torch.nn.functional import grid_sample
+from scipy.ndimage import gaussian_filter
+from typing import Literal
+import scipy
 
 
-def interp(x, I, phii, interp2d=False, **kwargs):
-    '''
-    Interpolate an image with specified regular voxel locations at specified sample points.
+def sph_to_cart(x: np.ndarray, order: Literal['ij', 'xy'] = 'xy') -> np.ndarray:
+    if x.ndim == 1:
+        x = x[None]
+    if order=='xy':
+        xout = np.array([np.sin(x[:,0])*np.sin(x[:,1]),
+                                np.sin(x[:,0])*np.cos(x[:,1]),
+                                np.cos(x[:,0])
+                                ]).T
+    elif order=='ij':
+        xout = np.array([np.cos(x[:,0]),
+                        np.sin(x[:,0])*np.cos(x[:,1]),
+                        np.sin(x[:,0])*np.sin(x[:,1])
+                        ]).T
     
-    Interpolate the image I, with regular grid positions stored in x (1d arrays),
-    at the positions stored in phii (3D or 4D arrays with first channel storing component)
+    return xout.squeeze()
+
+
+def anisotropy_correction(image, dI, direction='up', blur=False):
+    isotropic = np.all(np.array(dI) == dI[0])
+    if not isotropic:
+    # downsample all dimensions to largest dimension or upsample to the smallest dimension.
+        x_in = [np.arange(n)*d for n,d in zip(image.shape, dI)]
+
+        if direction == 'down':
+            dx = np.max(dI)
+        elif direction == 'up':
+            dx = np.min(dI)
+
+        x_out = [np.arange(0,n*d, step=dx) for n, d in zip(image.shape, dI)]
+        Xout = np.stack(np.meshgrid(*x_out, indexing='ij'), axis=-1)
+        image = scipy.interpolate.interpn(points=x_in, values=image, xi=Xout, method='linear', bounds_error=False, fill_value=None)
+        
+    if blur is not False:
+        image = gaussian_filter(image, sigma=blur)
     
-    Parameters
-    ----------
-    x : list of numpy arrays
-        x[i] is a numpy array storing the pixel locations of imaging data along the i-th axis.
-        Note that this MUST be regularly spaced, only the first and last values are queried.
-    I : array
-        Numpy array or torch tensor storing 2D or 3D imaging data.  In the 3D case, I is a 4D array with 
-        channels along the first axis and spatial dimensions along the last 3. For 2D, I is a 3D array with
-        spatial dimensions along the last 2.
-    phii : array
-        Numpy array or torch tensor storing positions of the sample points. phii is a 3D or 4D array
-        with components along the first axis (e.g. x0,x1,x1) and spatial dimensions 
-        along the last axes.
-    interp2d : bool, optional
-        If True, interpolates a 2D image, otherwise 3D. Default is False (expects a 3D image).
-    kwargs : dict
-        keword arguments to be passed to the grid sample function. For example
-        to specify interpolation type like nearest.  See pytorch grid_sample documentation.
+    return image
     
-    Returns
-    -------
-    out : torch tensor
-        Array storing an image with channels stored along the first axis. 
-        This is the input image resampled at the points stored in phii.
 
+def gather(I, patch_size=None):
+    """ Gather I into patches.
 
-    '''
-    # first we have to normalize phii to the range -1,1    
-    I = torch.as_tensor(I)
-    phii = torch.as_tensor(phii)
-    phii = torch.clone(phii)
-    ndim = 2 if interp2d==True else 3
-    for i in range(ndim):
-        phii[i] -= x[i][0]
-        phii[i] /= x[i][-1] - x[i][0]
-    # note the above maps to 0,1
-    phii *= 2.0
-    # to 0 2
-    phii -= 1.0
-    # done
+        Parameters
+        ----------
+        I : three or four-dimensional array with last dimension of size n_features
 
-    # NOTE I should check that I can reproduce identity
-    # note that phii must now store x,y,z along last axis
-    # is this the right order?
-    # I need to put batch (none) along first axis
-    # what order do the other 3 need to be in?    
-    # feb 2022
-    if 'padding_mode' not in kwargs:
-        kwargs['padding_mode'] = 'border' # note that default is zero
-    if interp2d==True:
-        phii = phii.flip(0).permute((1,2,0))[None]
-    else:
-        phii = phii.flip(0).permute((1,2,3,0))[None]
-    out = grid_sample(I[None], phii, align_corners=False, **kwargs)
+        patch_size : int, or {list, tuple} of length I.ndim
+            The side length of each patch
 
-    # note align corners true means square voxels with points at their centers
-    # post processing, get rid of batch dimension
-    out = out[0]
-
-    return out
-
-
-def read_matrix_data(fname):
-    '''
-    Read rigid transforms as matrix text file.
-    
-    Parameters
-    ----------
-    fname : str
-    
-    Returns
-    -------
-    A : array
-        matrix in xyz order
-    '''
-    A = np.zeros((3,3))
-    with open(fname,'rt') as f:
-        i = 0
-        for line in f:            
-            if ',' in line:
-                # we expect this to be a csv
-                for j,num in enumerate(line.split(',')):
-                    A[i,j] = float(num)
-            else:
-                # it may be separated by spaces
-                for j,num in enumerate(line.split(' ')):
-                    A[i,j] = float(num)
-            i += 1
-    
-    return A
+        Returns
+        -------
+        I_patches : four or five-dimensional array with samples aggregated in the second
+            to last dimension and the last dimension has size n_features.
+    """
+    if patch_size is None:
+        patch_size = [I.shape[1] // 10] * (I.ndim-1) # default to ~100 tiles in an isostropic image
+    elif isinstance(patch_size, int):
+        patch_size = [patch_size] * (I.ndim-1)
+    n_features = I.shape[-1]
+    if I.ndim == 3:
+        i, j = [x//patch_size[i] for i,x in enumerate(I.shape[:2])]
+        I_patches = I[:i*patch_size[0],:j*patch_size[1]].copy() # crop so 'I' divides evenly into patch_size (must create a new array to change stride lengths)
+        # reshape into patches by manipulating strides. (np.reshape preserves contiguity of elements, which we don't want in this case)
+        nbits = I_patches.strides[-1]
+        I_patches = np.lib.stride_tricks.as_strided(I_patches, shape=(i,j,patch_size[0],patch_size[1],n_features),
+                                                    strides=(patch_size[0]*I_patches.shape[1]*n_features*nbits,
+                                                             patch_size[1]*n_features*nbits,
+                                                             I_patches.shape[1]*n_features*nbits,
+                                                             n_features*nbits,
+                                                             nbits))
+        I_patches = I_patches.reshape(i,j,np.prod(patch_size),n_features)
+    elif I.ndim == 4:
+        i, j, k = [x//patch_size[i] for i,x in enumerate(I.shape[:3])]
+        I_patches = np.array(I[:i*patch_size[0], :j*patch_size[1], :k*patch_size[2]])
+        nbits = I_patches.strides[-1]
+        I_patches = np.lib.stride_tricks.as_strided(I_patches, shape=(i, j, k, patch_size[0], patch_size[1], patch_size[2], n_features),
+                                                strides=(patch_size[0]*I_patches.shape[1]*I_patches.shape[2]*n_features*nbits,
+                                                        patch_size[1]*I_patches.shape[2]*n_features*nbits,
+                                                        patch_size[2]*n_features*nbits,
+                                                        I_patches.shape[1]*I_patches.shape[2]*n_features*nbits,
+                                                        I_patches.shape[2]*n_features*nbits,
+                                                        n_features*nbits,
+                                                        nbits))
+        I_patches = I_patches.reshape(i,j,k,np.prod(patch_size),n_features)
+    return I_patches

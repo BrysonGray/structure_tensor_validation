@@ -383,11 +383,13 @@ class APSymKMeans():
             n_samples = X.shape[0]
 
         if isinstance(init, str) and init == "k-means++":
+            sample_weight = np.ones(len(X)) # 
             centers, _ = _kmeans._kmeans_plusplus(
                 X,
                 n_clusters,
+                sample_weight,
+                x_squared_norms,
                 random_state=random_state,
-                x_squared_norms=x_squared_norms
             )
             centers = centers / row_norms(centers)[:,None]
         elif isinstance(init, str) and init == "random":
