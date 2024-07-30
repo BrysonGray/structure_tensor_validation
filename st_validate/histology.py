@@ -15,8 +15,8 @@ from skimage.transform import resize
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-import apsym_kmeans
-
+from typing import Literal
+import matplotlib.patches as patches
 
 os.environ["OPENCV_IO_MAX_IMAGE_PIXELS"] = pow(2,40).__str__()
 
@@ -256,18 +256,27 @@ def project_to_plane(vectors, normal, L=None):
     return vectors_p
 
 
-def angle_to_rgb(angle, brightness=1):
-    r = np.abs(brightness * np.sin(angle))
-    g = np.abs(brightness * np.sin(angle + 2*np.pi / 3.))
-    b = np.abs(brightness * np.sin(angle + 4*np.pi/ 3.))
+def angle_to_rgb(angle: float, brightness: float = 1.0, cmap: Literal['rb', 'rgb'] = 'rb') -> list:
 
-    return [r,g,b]
+    if cmap == 'rb':
+        r = np.sin(angle)
+        g = 0.0
+        b = np.cos(angle)
+        rgb = np.abs([r,g,b])
+        rgb /= np.max(rgb)
+    elif cmap=='rgb':
+        r = np.abs(brightness * np.sin(angle))
+        g = np.abs(brightness * np.sin(angle + 2*np.pi / 3.))
+        b = np.abs(brightness * np.sin(angle + 4*np.pi/ 3.))
+        rgb = np.abs([r,g,b])
+
+    return rgb
 
 
 def vec_to_theta(vec):
     return np.arctan(vec[...,0] / (vec[...,1] + np.finfo(float).eps))
 
-
+#TODO: Remove
 # def periodic_mean(points, period=180):
 #     period_2 = period/2
 #     if max(points) - min(points) > period_2:
@@ -287,80 +296,75 @@ def vec_to_theta(vec):
 #     else:
 #         return points.mean(axis=0)
 
-def periodic_mean(points, period=180):
+#TODO: Remove
+# def periodic_mean(points, period=180):
 
-    half_period = period/2
-    is_left = np.array([0 if x > half_period else 1 for x in points])
+#     half_period = period/2
+#     is_left = np.array([0 if x > half_period else 1 for x in points])
     
-    n_left = is_left.sum()
-    n_right = len(points) - n_left
+#     n_left = is_left.sum()
+#     n_right = len(points) - n_left
 
-    if n_left > 0 and n_right > 0:
+#     if n_left > 0 and n_right > 0:
 
-        mean_left = (points * is_left).sum() / n_left
-        mean_right = (points * (1-is_left)).sum() / n_right
+#         mean_left = (points * is_left).sum() / n_left
+#         mean_right = (points * (1-is_left)).sum() / n_right
 
-        if mean_right - mean_left <= period/2:
-            mean = (n_left*mean_left + n_right*mean_right)/len(points)
-        else:
-            mean = (n_left*(mean_left + period) + n_right*mean_right)/len(points) % period
+#         if mean_right - mean_left <= period/2:
+#             mean = (n_left*mean_left + n_right*mean_right)/len(points)
+#         else:
+#             mean = (n_left*(mean_left + period) + n_right*mean_right)/len(points) % period
     
-    else:
-        mean = points.sum()/len(points)
-    
-    return mean
-
-
-def spherical_kmeans(vectors, n_clusters, cartesian=True):
-    """ Compute antipodally symetric spherical k-means.
-
-    Parameters
-    ----------
-    angles : array_like
-        An array of shape (N,3), where N is the number of sample directions and the last dimension is vector components in cartesian coordinates.
-    n_clusters : int
-        Number of means (k) for k-means.
-
-    Returns
-    -------
-    means : ndarray of shape (n_clusters, 3)
-    
-    """
-    skm = apsym_kmeans.APSymKMeans(n_clusters=n_clusters)
-    skm.fit(vectors)
-    means = skm.cluster_centers_
-
-    if not cartesian: # then return means in spherical coordinates (theta (polar angle), phi (azimuthal angle))
-        x = means[...,0]
-        y = means[...,1]
-        z = means[...,2]
-        theta = np.arctan(np.sqrt(x**2 + y**2) / (z + np.finfo(float).eps)) # range is (-pi/2,pi/2)
-        theta = np.where(theta < 0, theta + np.pi, theta) # range is (0,pi)
-        phi = np.arctan(x / (y + np.finfo(float).eps)) # range (-pi/2, pi/2)
-        return np.stack((theta,phi), axis=-1)
-
-    return means
-
-
-# Deprecated: to be removed TODO
-# def circular_kmeans(angles, n_clusters):
-
-#     angles = angles.flatten()
-#     angles = angles[~np.isnan(angles)]
-#     angles = np.where(angles < 0, angles + np.pi, angles) # flip angles to be in the range [0,pi] for periodic kmeans
-#     if n_clusters==1:
-#         means = periodic_mean(angles[...,None], period=np.pi)
-#     elif n_clusters > 1:
-#         periodic_kmeans = PeriodicKMeans(angles[...,None], period=np.pi, no_of_clusters=n_clusters)
-#         _, _, centers = periodic_kmeans.clustering()
-#         means = np.array(centers).squeeze()
 #     else:
-#         raise ValueError(f'n_clusters must be greater than or equal to 1, but got {n_clusters}')
+#         mean = points.sum()/len(points)
     
+#     return mean
+
+#TODO: Remove
+# def spherical_kmeans(vectors, n_clusters, cartesian=True):
+#     """ Compute antipodally symetric spherical k-means.
+
+#     Parameters
+#     ----------
+#     angles : array_like
+#         An array of shape (N,3), where N is the number of sample directions and the last dimension is vector components in cartesian coordinates.
+#     n_clusters : int
+#         Number of means (k) for k-means.
+
+#     Returns
+#     -------
+#     means : ndarray of shape (n_clusters, 3)
+    
+#     """
+#     skm = apsym_kmeans.APSymKMeans(n_clusters=n_clusters)
+#     skm.fit(vectors)
+#     means = skm.cluster_centers_
+
+#     if not cartesian: # then return means in spherical coordinates (theta (polar angle), phi (azimuthal angle))
+#         x = means[...,0]
+#         y = means[...,1]
+#         z = means[...,2]
+#         theta = np.arctan(np.sqrt(x**2 + y**2) / (z + np.finfo(float).eps)) # range is (-pi/2,pi/2)
+#         theta = np.where(theta < 0, theta + np.pi, theta) # range is (0,pi)
+#         phi = np.arctan(x / (y + np.finfo(float).eps)) # range (-pi/2, pi/2)
+#         return np.stack((theta,phi), axis=-1)
+
 #     return means
 
 
-def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coords=[0.1, 0.1, 0.8, 0.8], fig=None, show=True, title=None, xlabel=None, ylabel=None, colors=None):
+def plot_angles(image,
+                angles=None,
+                means=None,
+                mean_colors=None,
+                hist_color=None,
+                border_color=None,
+                axes_coords=[0.1, 0.1, 0.8, 0.8],
+                fig=None,
+                show=True,
+                title=None,
+                xlabel=None,
+                ylabel=None):
+    
     """Plot angles as a polar histogram. This function currently only supports polar (1D) angles.
 
     Parameters
@@ -371,10 +375,7 @@ def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coo
             2D grayscale image or rgb image with channels in the last dimension.
         means : sequence of floats, optional
             The mean or means of angles outputted from k-means clustering.
-        ntheta : int
-            Number of bins in to use for the histogram.
-        axes : bool
-            Show polar axis. Default is False
+
     """
 
     # plot
@@ -385,12 +386,13 @@ def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coo
     if len(image.shape) == 2:
         ax_image.imshow(image, cmap='gray', alpha=1)
     else:
-        ax_image.imshow(image, alpha=1) # image can have rgb channels
-    # ax_image.axis('off')  # don't show the axes ticks/lines/etc. associated with the image
-    plt.gca().set_yticklabels([])
-    plt.gca().set_xticklabels([])
-    plt.gca().set_xticks([])
-    plt.gca().set_yticks([])
+        ax_image.imshow(image, alpha=1, ) # image can have rgb channels
+
+    if border_color is not None:
+        rect = patches.Rectangle((-0.5,-0.5), image.shape[1], image.shape[0], color=border_color, fill=False, linewidth=10)
+        ax_image.add_patch(rect)
+    ax_image.axis('off')  # don't show the axes ticks/lines/etc. associated with the image
+
     if title is not None:
         ax_image.set_title(title)
     if xlabel is not None:
@@ -399,28 +401,31 @@ def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coo
         ax_image.set_ylabel(ylabel, fontsize=24)
 
     if angles is not None:
+
+        nbins = 500
         angles_flat = angles.flatten()
         angles_ = np.where(angles_flat<0, angles_flat+np.pi, angles_flat-np.pi)
         angles_sym = np.concatenate((angles_flat, angles_), axis=0)
 
-        t = np.arange(ntheta+1)*(2*np.pi/ntheta) - np.pi
+        t = np.arange(nbins+1)*(2*np.pi/nbins) - np.pi
         x, _ = np.histogram(angles_sym, t)
 
         xf = np.fft.rfft(x)
         n = np.arange(len(xf))
         xf = xf * np.exp(-0.1*n)
-        xfinv = np.fft.irfft(xf,ntheta+1)
+        xfinv = np.fft.irfft(xf,nbins+1)
         xfinv = xfinv / np.sum(xfinv)
 
         polar_coords = np.array(axes_coords) + np.array([0.05, 0.05, -0.1, -0.1])
         ax_polar = fig.add_axes(polar_coords, projection = 'polar')
         ax_polar.patch.set_alpha(0)
-        ax_polar.plot(t, xfinv, 'royalblue', linewidth=8)
+        if hist_color is None:
+            hist_color = 'royalblue'
+        ax_polar.plot(t, xfinv, color=hist_color, linewidth=8)
         ax_polar.set_theta_offset(-np.pi/2)
         ax_polar.set_yticklabels([])
         ax_polar.grid(False)
-        if not axis:
-            ax_polar.axis('off')
+        ax_polar.axis('off')
 
     if means is not None:
         if means.shape==():
@@ -428,17 +433,13 @@ def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coo
         ax_means = fig.add_axes(axes_coords)
 
         for i,m in enumerate(means):
-            if colors is None:
-                color='lime'
-            elif isinstance(colors[i], (int, float)): # if color is a scalar, treat it as an angle and convert to rgb
-                color = angle_to_rgb(colors[i])
-            elif isinstance(colors[i], (np.ndarray, list, tuple)): # if color is a sequence, treat it as an rgb value.
-                color = np.abs(colors[i])
-                if len(color) != 3:
-                    raise ValueError("The colors must be either scalars or sequences of length 3.")
-                
+            
+            if mean_colors is not None:
+                color = mean_colors[i]
+
             if isinstance(m, (int, float)):
                 m = [np.sin(m), np.cos(m)]
+
             ax_means.quiver(0, 0, m[0], -m[1], scale_units='width', scale=3, width=0.02, color=color)
             ax_means.quiver(0, 0, -m[0], m[1], scale_units='width', scale=3, width=0.02, color=color)
         ax_means.axis('off')
@@ -447,7 +448,7 @@ def plot_angles(image, angles=None, means=None, ntheta=500, axis=False, axes_coo
     if show:
         plt.show()
 
-    return
+    return fig
 
 
 def plot_angles_3d(image, vectors=None, means=None, mip=False):
@@ -489,7 +490,6 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False):
     
     if means is not None:
         mu_2d = []
-        colors = []
         # project into orthogonal planes. Resulting shape is (3, n_clusters, 2)
         for m in means: # for each mean append the (3,2) array representing one 2d vector per orthogonal plane
             mu_2d.append([[m[0], m[1]],
@@ -497,10 +497,8 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False):
                           [m[1], m[2]]])
         mu_2d = np.array(mu_2d) # shape (n_clusters, 3, 2)
         mu_2d = np.transpose(mu_2d, (1,0,2)) # shape (3, n_clusters, 2)
-        colors = np.abs(means)
     else:
         mu_2d = [None,None,None]
-        colors = None
 
     fig = plt.figure()
 
@@ -511,11 +509,12 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False):
     xlabels = ["X", "X", "Y"]
     ylabels = ["Y", "Z", "Z"]
 
+    mean_colors = np.abs(means) / np.max(np.abs(means))
     for i in range(3):
         if vectors is not None:
-            plot_angles(image=I_ortho[i], angles=angles_2d[i], means=mu_2d[i], axes_coords=axes_coords_list[i], fig=fig, show=False, title=None, xlabel=xlabels[i], ylabel=ylabels[i], colors=colors)
+            plot_angles(image=I_ortho[i], angles=angles_2d[i], means=mu_2d[i], mean_colors=mean_colors, axes_coords=axes_coords_list[i], fig=fig, show=False, title=None, xlabel=xlabels[i], ylabel=ylabels[i])
         else:
-            plot_angles(image=I_ortho[i], means=mu_2d[i], axes_coords=axes_coords_list[i], fig=fig, show=False, title=None, xlabel=xlabels[i], ylabel=ylabels[i], colors=colors)
+            plot_angles(image=I_ortho[i], means=mu_2d[i], mean_colors=mean_colors, axes_coords=axes_coords_list[i], fig=fig, show=False, title=None, xlabel=xlabels[i], ylabel=ylabels[i])
 
     plt.show()
 

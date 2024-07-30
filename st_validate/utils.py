@@ -9,7 +9,8 @@ import scipy
 
 
 def sph_to_cart(x: np.ndarray, order: Literal['ij', 'xy'] = 'xy') -> np.ndarray:
-    if x.ndim == 1:
+    ndim = x.ndim
+    if ndim == 1:
         x = x[None]
     if order=='xy':
         xout = np.array([np.sin(x[:,0])*np.sin(x[:,1]),
@@ -21,8 +22,10 @@ def sph_to_cart(x: np.ndarray, order: Literal['ij', 'xy'] = 'xy') -> np.ndarray:
                         np.sin(x[:,0])*np.cos(x[:,1]),
                         np.sin(x[:,0])*np.sin(x[:,1])
                         ]).T
-    
-    return xout.squeeze()
+    if ndim == 1:
+        xout = xout.squeeze()
+
+    return xout
 
 
 def anisotropy_correction(image, dI, direction='up', blur=False):

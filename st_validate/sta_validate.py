@@ -192,8 +192,10 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, crop=None, cro
     dim = len(nI)
     if dim == 0 or dim > 3:
         raise TypeError(f"Input image should have two or three dimensions but got {dim}")
-    if len(true_thetas) == 0 or len(true_thetas) > 3:
-        raise Exception(f"Argument \"true_thetas\" must be have length 1 or 2 but got {len(true_thetas)}.")
+    if not isinstance(true_thetas, np.ndarray):
+        true_thetas = np.array(true_thetas)
+    if true_thetas.ndim == 0:
+        true_thetas = true_thetas[None]
         
     # Compute angles from image
     S = histology.structure_tensor(I, derivative_sigma=derivative_sigma, tensor_sigma=tensor_sigma)
@@ -235,7 +237,7 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, crop=None, cro
         # convert true_thetas to cartesian coordinates for easier error calculation
         true_thetas = utils.sph_to_cart(true_thetas)
 
-        if len(true_thetas) == 1:
+        if len(true_thetas) == 1 or true_thetas.ndim == 1:
             mu = periodic_kmeans.apsym_kmeans(angles, k=1)
             diff = np.arccos(np.abs(mu.dot(true_thetas.T)))
         else:
