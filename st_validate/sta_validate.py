@@ -15,7 +15,7 @@ import pandas as pd
 from scipy.linalg import expm
 from tqdm.contrib import itertools as tqdm_itertools
 import periodic_kmeans
-import histology
+import sta
 import utils
 
 
@@ -68,6 +68,8 @@ def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
     labels = None
 
     if len(x) == 3:
+        if angles.ndim == 1:
+            angles = angles[None]
         sigma = (np.diag(d)*width)**2 # sigma is the covariance matrix
         blur = (0., blur_factor, blur_factor)
         for angle in angles:
@@ -198,11 +200,11 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, crop=None, cro
         true_thetas = true_thetas[None]
         
     # Compute angles from image
-    S = histology.structure_tensor(I, derivative_sigma=derivative_sigma, tensor_sigma=tensor_sigma)
+    S = sta.structure_tensor(I, derivative_sigma=derivative_sigma, tensor_sigma=tensor_sigma)
     if dim == 2:
-        angles = histology.angles(S) # range [-pi/2, pi/2]
+        angles = sta.angles(S) # range [-pi/2, pi/2]
     elif dim == 3:
-        angles = histology.angles(S, cartesian=True)        
+        angles = sta.angles(S, cartesian=True)        
 
     if crop == 0.0:
         crop = None

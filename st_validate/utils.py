@@ -28,6 +28,10 @@ def sph_to_cart(x: np.ndarray, order: Literal['ij', 'xy'] = 'xy') -> np.ndarray:
     return xout
 
 
+def vec_to_theta(vec):
+    return np.arctan(vec[...,0] / (vec[...,1] + np.finfo(float).eps))
+
+
 def anisotropy_correction(image, dI, direction='up', blur=False):
     isotropic = np.all(np.array(dI) == dI[0])
     if not isotropic:
