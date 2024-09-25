@@ -7,9 +7,11 @@ Author: Bryson Gray
 2023
 """
 import warnings
+
 import numpy as np
 from numbers import Integral, Real
-
+from sklearn.cluster import _kmeans
+from sklearn.cluster._k_means_common import _is_same_clustering
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils import check_array, check_random_state
 from sklearn.utils._param_validation import Interval, StrOptions
@@ -17,8 +19,6 @@ from sklearn.utils.extmath import row_norms
 from sklearn.utils.validation import (
     _is_arraylike_not_scalar,
 )
-from sklearn.cluster import _kmeans
-from sklearn.cluster._k_means_common import _is_same_clustering
 
 def _apsym_lloyd_iter(X, centers, update_centers=True):
     """

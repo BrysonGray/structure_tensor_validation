@@ -8,12 +8,13 @@ Author: Bryson Gray
 
 '''
 
-from scipy.ndimage import gaussian_filter
 import os
+
 import cv2
-from skimage.transform import resize
-import numpy as np
 import matplotlib
+import numpy as np
+from scipy.ndimage import gaussian_filter
+from skimage.transform import resize
 
 os.environ["OPENCV_IO_MAX_IMAGE_PIXELS"] = pow(2,40).__str__()
 

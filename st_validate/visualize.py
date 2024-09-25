@@ -8,11 +8,13 @@ Author: Bryson Gray
 
 '''
 
+from typing import Literal
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
-from utils import vec_to_theta
-from typing import Literal
+
+from .utils import vec_to_theta
 
 
 def angle_to_rgb(angle: np.ndarray, brightness: float = 1.0, cmap: Literal['rb', 'rgb'] = 'rb') -> list:
@@ -64,7 +66,7 @@ def plot_angles(image,
 
     ax_image = fig.add_axes(axes_coords)
     if len(image.shape) == 2:
-        ax_image.imshow(image, cmap='gray', alpha=1)
+        ax_image.imshow(image, cmap='gray', alpha=1, vmin=-0.2)
     else:
         ax_image.imshow(image, alpha=1, ) # image can have rgb channels
 
@@ -88,7 +90,7 @@ def plot_angles(image,
         angles_sym = np.concatenate((angles_flat, angles_), axis=0)
 
         t = np.arange(nbins+1)*(2*np.pi/nbins) - np.pi
-        x, _ = np.histogram(angles_sym, t)
+        x, bins = np.histogram(angles_sym, t)
 
         xf = np.fft.rfft(x)
         n = np.arange(len(xf))
@@ -101,7 +103,9 @@ def plot_angles(image,
         ax_polar.patch.set_alpha(0)
         if hist_color is None:
             hist_color = 'royalblue'
-        ax_polar.plot(t, xfinv, color=hist_color, linewidth=8)
+        # ax_polar.plot(t, xfinv, color=hist_color, linewidth=8)
+        for i in range(len(bins)-1):
+            ax_polar.bar(bins[i], xfinv[i], width=bins[i + 1] - bins[i], align='edge', alpha=0.75, color=hist_color)
         ax_polar.set_theta_offset(-np.pi/2)
         ax_polar.set_yticklabels([])
         ax_polar.grid(False)
@@ -122,8 +126,8 @@ def plot_angles(image,
             if isinstance(m, (int, float)):
                 m = [np.sin(m), np.cos(m)]
 
-            ax_means.quiver(0, 0, m[0], -m[1], scale_units='width', scale=3, width=0.02, color=color)
-            ax_means.quiver(0, 0, -m[0], m[1], scale_units='width', scale=3, width=0.02, color=color)
+            ax_means.quiver(0, 0, m[0], -m[1], scale_units='width', scale=3.0, width=0.02, color=color)
+            ax_means.quiver(0, 0, -m[0], m[1], scale_units='width', scale=3.0, width=0.02, color=color)
         ax_means.axis('off')
 
 
@@ -133,8 +137,8 @@ def plot_angles(image,
     return fig
 
 
-def plot_angles_3d(image, vectors=None, means=None, mip=False, border_color=None, hist_color=None):
-    """Plot 3D vector orientations as a histogram in orthogonal views with the optional original image and vector means.
+def plot_angles_3d(image, vectors=None, means=None, mip=False, border_color=None, hist_color=None, vertical=False):
+    """Plot 3D vector orientations as a histogram in orthogonal views with the optional vector means.
 
     Parameters
     ----------
@@ -143,6 +147,9 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False, border_color=None
     vectors : array_like
         The sequence of angles as three-dimensional vectors with components along the last axis.
     means : array_like
+    vertical : bool
+        Sets the orientation of orthogonal image views in the output figure to vertical if True.
+        Default orientation is horizontal.
 
     """
     if mip:
@@ -179,24 +186,23 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False, border_color=None
                           [m[1], m[2]]])
         mu_2d = np.array(mu_2d) # shape (n_clusters, 3, 2)
         mu_2d = np.transpose(mu_2d, (1,0,2)) # shape (3, n_clusters, 2)
-        # mean_colors = np.abs(means) / np.max(np.abs(means))
         mean_colors = np.abs(np.stack((means[:,2], means[:,0], means[:,1]), axis=-1)) / np.max(np.abs(means))
     else:
         mu_2d = [None,None,None]
         mean_colors = None
         
-    figsize = [p*c for p,c in zip(plt.rcParams["figure.figsize"], [3.0, 1.0])]
-    # figsize = [p*c for p,c in zip(plt.rcParams["figure.figsize"], [1.0, 3.0])]
-
-    fig = plt.figure(figsize=figsize)
-
-    axes_coords_list = [[0.005, 0.05, 0.325, 0.85], # x0, y0, ∆x, ∆y
-                        [0.33, 0.05, 0.325, 0.85],
-                        [0.66, 0.05, 0.325, 0.85]]
-    # axes_coords_list = [[0.05, 0.66, 0.85, 0.325], # x0, y0, ∆x, ∆y
-    #                 [0.05, 0.33, 0.85, 0.325],
-    #                 [0.05, 0.005, 0.85, 0.325]]
-    # titles = ["x-y", "x-z", "y-z"]
+    if vertical:
+        figsize = [p*c for p,c in zip(plt.rcParams["figure.figsize"], [1.0, 3.0])]
+        fig = plt.figure(figsize=figsize)
+        axes_coords_list = [[0.05, 0.66, 0.85, 0.325], # x0, y0, ∆x, ∆y
+                        [0.05, 0.33, 0.85, 0.325],
+                        [0.05, 0.005, 0.85, 0.325]]
+    else:
+        figsize = [p*c for p,c in zip(plt.rcParams["figure.figsize"], [3.0, 1.0])]
+        fig = plt.figure(figsize=figsize)
+        axes_coords_list = [[0.005, 0.05, 0.325, 0.85], # x0, y0, ∆x, ∆y
+                            [0.33, 0.05, 0.325, 0.85],
+                            [0.66, 0.05, 0.325, 0.85]]
     xlabels = ["X", "X", "Y"]
     ylabels = ["Y", "Z", "Z"]
 

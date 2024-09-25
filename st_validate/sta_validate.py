@@ -9,14 +9,13 @@ Author: Bryson Gray
 
 '''
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from scipy.linalg import expm
 from tqdm.contrib import itertools as tqdm_itertools
-import periodic_kmeans
-import sta
-import utils
+
+from . import periodic_kmeans, sta, utils
 
 
 def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\

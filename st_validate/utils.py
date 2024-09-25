@@ -2,9 +2,10 @@
 
 """Utils.py : Helper functions."""
 
+from typing import Literal
+
 import numpy as np
 from scipy.ndimage import gaussian_filter
-from typing import Literal
 import scipy
 
 
@@ -45,7 +46,7 @@ def anisotropy_correction(image, dI, direction='up', blur=False):
 
         x_out = [np.arange(0,n*d, step=dx) for n, d in zip(image.shape, dI)]
         Xout = np.stack(np.meshgrid(*x_out, indexing='ij'), axis=-1)
-        image = scipy.interpolate.interpn(points=x_in, values=image, xi=Xout, method='linear', bounds_error=False, fill_value=None)
+        image = scipy.interpolate.interpn(points=x_in, values=image, xi=Xout, method='linear', bounds_error=False, fill_value=0.0)
         
     if blur is not False:
         image = gaussian_filter(image, sigma=blur)

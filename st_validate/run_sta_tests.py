@@ -6,12 +6,13 @@
 
 import argparse
 import os
+
 import numpy as np
 import pandas as pd
 import pickle
-# from fibermetric import sta_validate
-import sta_validate
 import tqdm
+
+from . import sta_validate
 
 derivative_sigmas = np.linspace(start=0.15, stop=2.5, num=10)
 tensor_sigmas = np.linspace(start=0.0, stop=5.0, num=10)
