@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
 
-from .utils import vec_to_theta
+from utils import vec_to_theta
 
 
 def angle_to_rgb(angle: np.ndarray, brightness: float = 1.0, cmap: Literal['rb', 'rgb'] = 'rb') -> list:

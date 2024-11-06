@@ -15,7 +15,7 @@ import pandas as pd
 from scipy.linalg import expm
 from tqdm.contrib import itertools as tqdm_itertools
 
-from . import periodic_kmeans, sta, utils
+import periodic_kmeans, sta, utils
 
 
 def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
