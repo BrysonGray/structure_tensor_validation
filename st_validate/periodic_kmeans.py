@@ -36,7 +36,8 @@ def multiple_exclusive_distances(diff):
 
 def distance(a: np.ndarray, b: np.ndarray, period: float) -> np.ndarray:
 
-    d = np.abs(a[:,None] - b[None])
+    # d = np.abs(a[:,None] - b[None])
+    d = (a[:,None] - b[None])%period
     d = np.minimum(d, np.array([period]) - d)
     return d
 

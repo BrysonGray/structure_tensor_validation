@@ -63,8 +63,8 @@ def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
     X = np.stack(np.meshgrid(*x, indexing='ij'), axis=-1)
     blur_factor = np.sqrt(d[0]**2 - d[1]**2)
 
-    I = np.random.randn(*X.shape[:-1])*noise
-    labels = None
+    # I = np.random.randn(*X.shape[:-1])
+    I = np.zeros(X.shape[:-1])
 
     if len(x) == 3:
         if angles.ndim == 1:
@@ -115,6 +115,9 @@ def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
         if crop is not None:
             if crop > 0:
                 I[crop:-crop, crop:-crop, crop:-crop]
+        
+        # add noise relative to signal amplitude
+        I += np.random.randn(*I.shape) * noise * I.max()
 
         if display:
             fig, ax = plt.subplots(3, figsize=(6,4))
@@ -150,6 +153,10 @@ def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
         if crop is not None:
             if crop > 0:
                 I[crop:-crop, crop:-crop]
+                
+        # add noise relative to signal amplitude
+        I += np.random.randn(*I.shape) * noise * I.max()
+
         if display:
             plt.imshow(I)
             plt.title('Image')
@@ -225,7 +232,7 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, crop=None, cro
             x = np.arange(180) * np.pi/180
             mu = periodic_kmeans.periodic_mean(angles, x, period=np.pi)[None]
         else:
-            mu = periodic_kmeans.periodic_kmeans(angles, period=np.pi, k=2)
+            mu = periodic_kmeans.periodic_kmeans(angles, period=np.pi, k=len(true_thetas))
         
         # Get difference between mean(s) and the true angle(s)
         diff = periodic_kmeans.distance(mu, np.array(true_thetas), period=np.pi) # shape (k,k) for k means
@@ -242,7 +249,7 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, crop=None, cro
             mu = periodic_kmeans.apsym_kmeans(angles, k=1)
             diff = np.arccos(np.abs(mu.dot(true_thetas.T)))
         else:
-            mu = periodic_kmeans.apsym_kmeans(angles, k=2)
+            mu = periodic_kmeans.apsym_kmeans(angles, k=len(true_thetas))
             diff = periodic_kmeans.distance_3d(mu, true_thetas)
             diff = periodic_kmeans.multiple_exclusive_distances(diff)
             diff = np.mean(diff)

@@ -29,25 +29,26 @@ def main(path, out):
         AI = npz['AI']
         period = npz['period']
         angle = npz['angle']
+        noise = npz['noise']
 
         # save dataframe using pickle
         if phantom.ndim == 2:
             if angle.ndim == 0:
-                name = f'error_AI-{AI:.2f}_period-{period:02d}_theta-{angle:.2f}.p'
+                name = f'error_AI-{AI:.2f}_period-{period:02d}_theta-{angle:.2f}_noise-{noise:.2f}.p'
             else:
-                name = f'error_AI-{AI:.2f}_period-{period:02d}_theta-{angle[0]:.2f}-{angle[1]:.2f}.p'
+                name = f'error_AI-{AI:.2f}_period-{period:02d}_theta-{angle[0]:.2f}-{angle[1]:.2f}_noise-{noise:.2f}.p'
 
         if phantom.ndim == 3:
             if angle.ndim == 1:
-                    name = f'error_AI-{AI:.2f}_period-{period:02d}_theta-{angle[0]:.2f}_phi-{angle[1]:.2f}.p'
+                    name = f'error_AI-{AI:.2f}_period-{period:02d}_theta-{angle[0]:.2f}_phi-{angle[1]:.2f}_noise-{noise:.2f}.p'
             else:
-                name = f'error_AI-{AI:.2f}_period-{period:02d}_theta-{angle[0,0]:.2f}-{angle[1,0]:.2f}_phi-{angle[0,1]:.2f}-{angle[1,1]:.2f}.p'
+                name = f'error_AI-{AI:.2f}_period-{period:02d}_theta-{angle[0,0]:.2f}-{angle[1,0]:.2f}_phi-{angle[0,1]:.2f}-{angle[1,1]:.2f}_noise-{noise:.2f}.p'
         
         if os.path.exists(os.path.join(out,name)):
             continue
 
         error_df = pd.DataFrame({'derivative_sigma':[], 'tensor_sigma':[], 'AI':[], 'period':[],
-                                'width':[], 'angles':[], 'error':[]})
+                                'width':[], 'angles':[], 'noise':[], 'error':[]})
 
         for sigma0 in derivative_sigmas:
             for sigma1 in tensor_sigmas:
@@ -56,7 +57,7 @@ def main(path, out):
                 error = sta_validate.sta_test(phantom, sigma0, sigma1, true_thetas=angle, crop=crop_all, crop_end=crop_end)
                 new_row = {'derivative_sigma': sigma0, 'tensor_sigma': sigma1,
                             'AI': AI, 'period': period, 'width': 1,
-                            'angles': [angle], 'error': error
+                            'angles': [angle], 'noise': noise, 'error': error
                         }
                 error_df = pd.concat((error_df, pd.DataFrame(new_row)), ignore_index=True)
 
@@ -66,8 +67,6 @@ def main(path, out):
         with open(os.path.join(out,name), 'wb') as f:
             pickle.dump(error_df, f)
         
-        return
-
 
 if __name__ == "__main__":
 
