@@ -66,7 +66,7 @@ def plot_angles(image,
 
     ax_image = fig.add_axes(axes_coords)
     if len(image.shape) == 2:
-        ax_image.imshow(image, cmap='gray', alpha=1, vmin=-0.2)
+        ax_image.imshow(image, cmap='gray')
     else:
         ax_image.imshow(image, alpha=1, ) # image can have rgb channels
 

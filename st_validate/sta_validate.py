@@ -18,19 +18,21 @@ from tqdm.contrib import itertools as tqdm_itertools
 import periodic_kmeans, sta, utils
 
 
-def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
-                 blur_correction=False, display=False, interp=True, inverse=False):
+def make_phantom(
+    x, angles, period=10, width=1.0, noise=1e-6, crop=None,
+    blur_correction=False, display=False, interp=True, inverse=False, mask_frac=0.0
+):
     """
     Parameters
     ----------
     x : list of arrays
-        x[i] stores the location of voxels on the i-th axis of the image
+        x[i] stores the location of voxels on the i-th axis of the image.
 
-    angles : list or ndarray 
+    angles : list or ndarray
         Angles of the lines in radians. For 2D phantoms, this must have length n where n
         is the number of angles and the values must be in the range [-pi/2, pi/2].
-        In 2D the angle is relative to the first image axis which points toward the bottom of the image. 
-        For 3D phantoms, this must have shape (n,2) where the first value (the polar angle) is relative
+        In 2D the angle is relative to the first image axis which points toward the bottom of the image.
+        For 3D phantoms, this must have shape (n, 2) where the first value (the polar angle) is relative
         to the first image axis and in the range [0, pi] and the second value (the azimuthal angle) is
         relative to the second image axis and in the range [-pi/2, pi/2].
 
@@ -45,9 +47,13 @@ def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
 
     blur_correction : bool
         If True, upsample by interpolating and apply a Gaussian filter to the image to create isotropic blur.
-    
+
+    mask_frac : float
+        Fraction of the image to mask along one dimension for each line angle. A value of 0.0 means no masking,
+        while higher values mask a larger portion of the image.
+
     display : bool
-    
+
     interp : bool
         If True, interpolate the image to the largest dimension.
 
@@ -56,111 +62,128 @@ def make_phantom(x, angles, period=10, width=1.0, noise=1e-6, crop=None,\
     phantom : ndarray of shape nI
 
     labels : ndarray, optional
-
     """
     d = np.array([xi[1] - xi[0] for xi in x])
-    b = np.array([len(xi)//2 for xi in x])
+    b = np.array([len(xi) // 2 for xi in x])
     X = np.stack(np.meshgrid(*x, indexing='ij'), axis=-1)
     blur_factor = np.sqrt(d[0]**2 - d[1]**2)
 
-    # I = np.random.randn(*X.shape[:-1])
     I = np.zeros(X.shape[:-1])
 
     if len(x) == 3:
         if angles.ndim == 1:
             angles = angles[None]
-        sigma = (np.diag(d)*width)**2 # sigma is the covariance matrix
+        sigma = (np.diag(d) * width)**2  # sigma is the covariance matrix
         blur = (0., blur_factor, blur_factor)
-        for angle in angles:
-
+        for i, angle in enumerate(angles):
             direction = utils.sph_to_cart(angle, order='ij')
 
             # rotation matrix using Rodrigues' formula
-            if np.all(direction == [1.0,0.0,0.0]):
+            if np.all(direction == [1.0, 0.0, 0.0]):
                 sigma_ = sigma
-                x_ = (X - b)[...,None]
+                x_ = (X - b)[..., None]
             else:
-                axis = np.cross(direction,np.array([1.0,0.0,0.0]))
+                axis = np.cross(direction, np.array([1.0, 0.0, 0.0]))
                 axis = axis / np.sum(axis**2)**0.5
-                alpha = np.arccos(np.dot(direction,np.array([1.0,0.0,0.0])))    
-                K = np.array([[0.0,-axis[2],axis[1]],
-                        [axis[2],0.0,-axis[0]],
-                        [-axis[1],axis[0],0.0]])
-                R = expm(alpha*K)
-                # covariance
-                sigma_ = R@sigma@R.T
-                x_ = (R@(X-b)[...,None])
-            sigma__ = sigma_[1:,1:]
-            Z = 1.0/np.sqrt(2.0*np.pi**2)/np.linalg.det(sigma__)**0.5
-            # note that the 0the component will not go into the gaussian
-            x__ = x_[...,1:,:]
+                alpha = np.arccos(np.dot(direction, np.array([1.0, 0.0, 0.0])))
+                K = np.array([
+                    [0.0, -axis[2], axis[1]],
+                    [axis[2], 0.0, -axis[0]],
+                    [-axis[1], axis[0], 0.0]
+                ])
+                R = expm(alpha * K)
+                sigma_ = R @ sigma @ R.T
+                x_ = (R @ (X - b)[..., None])
+            sigma__ = sigma_[1:, 1:]
+            Z = 1.0 / np.sqrt(2.0 * np.pi**2) / np.linalg.det(sigma__)**0.5
+            x__ = x_[..., 1:, :]
 
             # draw parallel lines using mod
             if period is not None:
-                x__ = ((x__+period/2)%period) - period/2
-                
-            tmp = np.linalg.inv(sigma__)@x__
-            tmp = x__.swapaxes(-1,-2)@tmp
-            I_ = Z*np.exp(-0.5*tmp[...,0,0])
+                x__ = ((x__ + period / 2) % period) - period / 2
+
+            tmp = np.linalg.inv(sigma__) @ x__
+            tmp = x__.swapaxes(-1, -2) @ tmp
+            I_ = Z * np.exp(-0.5 * tmp[..., 0, 0])
+
+            if mask_frac > 0.0:
+                mask_dim = 1
+                boundary = mask_frac * x[mask_dim].max()
+                boundary = boundary - b[mask_dim]
+                # shift the boundary so it's halfway between the nearest lines
+                shift = period / 2 - boundary % period
+                boundary += shift
+                mask = (x_[:, :, :, mask_dim] > boundary).squeeze()
+                I_ = mask * I_
+
             I += I_
         if inverse:
             alpha = 10
-            I = np.exp(-alpha*I)
+            I = np.exp(-alpha * I)
 
         if blur_correction:
             I = utils.anisotropy_correction(I, d, blur=blur)
         elif interp:
             I = utils.anisotropy_correction(I, d)
 
-        if crop is not None:
-            if crop > 0:
-                I[crop:-crop, crop:-crop, crop:-crop]
-        
-        # add noise relative to signal amplitude
+        if crop is not None and crop > 0:
+            I = I[crop:-crop, crop:-crop, crop:-crop]
+
         I += np.random.randn(*I.shape) * noise * I.max()
 
         if display:
-            fig, ax = plt.subplots(3, figsize=(6,4))
-            ax[0].imshow(I[I.shape[0]//2])
+            fig, ax = plt.subplots(3, figsize=(6, 4))
+            ax[0].imshow(I[I.shape[0] // 2])
             ax[0].set_title('Image xy')
-            ax[1].imshow(I[:,I.shape[1]//2])
+            ax[1].imshow(I[:, I.shape[1] // 2])
             ax[1].set_title('Image zx')
-            ax[2].imshow(I[:,:,I.shape[2]//2])
+            ax[2].imshow(I[:, :, I.shape[2] // 2])
             ax[2].set_title('Image zy')
             plt.show()
 
     elif len(x) == 2:
         blur = (0., blur_factor)
         for angle in angles:
-            sigma = (np.sin(angle)*d[0]*width)**2 + (np.cos(angle)*d[1]*width)**2 # variance (not standard deviation)
-            x__ = (X - b)@np.array([-np.sin(angle), np.cos(angle)])
+            sigma = (np.sin(angle) * d[0] * width)**2 + (np.cos(angle) * d[1] * width)**2
+            rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)], 
+                                         [np.sin(angle), np.cos(angle)]])
+            x_ = (X - b) @ rotation_matrix
+            x__= (X - b) @ np.array([-np.sin(angle), np.cos(angle)])
             if period is not None:
-                x__ = ((x__+period/2)%period) - period/2
-            Z = 1.0 / (2.0*np.pi*sigma)
-            I_ = Z*np.exp(-0.5 * x__**2 / sigma)
+                x__ = ((x__ + period / 2) % period) - period / 2
+            Z = 1.0 / (2.0 * np.pi * sigma)
+            I_ = Z * np.exp(-0.5 * x__**2 / sigma)
+            
+            if mask_frac > 0.0:
+                mask_dim = 1
+                boundary = mask_frac * x[mask_dim].max()
+                boundary = boundary - b[mask_dim]
+                # shift the boundary so it's halfway between the nearest lines
+                shift = period / 2 - boundary % period
+                boundary += shift
+                mask = (x_[:, :, mask_dim] > boundary).squeeze()
+                I_ = mask * I_
 
             I += I_
 
         if inverse:
             alpha = 10
-            I = np.exp(-alpha*I)
+            I = np.exp(-alpha * I)
 
         if blur_correction:
             I = utils.anisotropy_correction(I, d, blur=True)
         elif interp:
             I = utils.anisotropy_correction(I, d)
 
-        if crop is not None:
-            if crop > 0:
-                I[crop:-crop, crop:-crop]
-                
-        # add noise relative to signal amplitude
+        if crop is not None and crop > 0:
+            I = I[crop:-crop, crop:-crop]
+
         I += np.random.randn(*I.shape) * noise * I.max()
 
         if display:
             plt.imshow(I)
             plt.title('Image')
-    
+
     return I
 
 
