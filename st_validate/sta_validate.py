@@ -20,7 +20,8 @@ import periodic_kmeans, sta, utils
 
 def make_phantom(
     x, angles, period=10, width=1.0, noise=1e-6, crop=None,
-    blur_correction=False, display=False, interp=True, inverse=False, mask_frac=0.0
+    blur_correction=False, display=False, interp=True, inverse=False,
+    thickness=1.0, mask_frac=0.0,
 ):
     """
     Parameters
@@ -117,6 +118,9 @@ def make_phantom(
                 I_ = mask * I_
 
             I += I_
+        # Add noise
+        I += np.random.randn(*I.shape) * noise * I.max()
+
         if inverse:
             alpha = 10
             I = np.exp(-alpha * I)
@@ -129,7 +133,6 @@ def make_phantom(
         if crop is not None and crop > 0:
             I = I[crop:-crop, crop:-crop, crop:-crop]
 
-        I += np.random.randn(*I.shape) * noise * I.max()
 
         if display:
             fig, ax = plt.subplots(3, figsize=(6, 4))
@@ -165,7 +168,8 @@ def make_phantom(
                 I_ = mask * I_
 
             I += I_
-
+        # Add noise
+        I += np.random.randn(*I.shape) * noise * I.max()
         if inverse:
             alpha = 10
             I = np.exp(-alpha * I)
@@ -178,7 +182,6 @@ def make_phantom(
         if crop is not None and crop > 0:
             I = I[crop:-crop, crop:-crop]
 
-        I += np.random.randn(*I.shape) * noise * I.max()
 
         if display:
             plt.imshow(I)
@@ -233,7 +236,7 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, crop=None, cro
     if dim == 2:
         angles = sta.angles(S) # range [-pi/2, pi/2]
     elif dim == 3:
-        angles = sta.angles(S, cartesian=True)        
+        angles = sta.angles(S, cartesian=True) # output is in "xyz" order   
 
     if crop == 0.0:
         crop = None
@@ -266,7 +269,7 @@ def sta_test(I, derivative_sigma, tensor_sigma, true_thetas=None, crop=None, cro
     if dim == 3:
         angles = angles.reshape(-1,dim)
         # convert true_thetas to cartesian coordinates for easier error calculation
-        true_thetas = utils.sph_to_cart(true_thetas)
+        true_thetas = utils.sph_to_cart(true_thetas) # this converts (theta, phi) to (x,y,z) to match angles which has "xyz" order.
 
         if len(true_thetas) == 1 or true_thetas.ndim == 1:
             mu = periodic_kmeans.apsym_kmeans(angles, k=1)

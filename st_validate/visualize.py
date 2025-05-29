@@ -208,13 +208,13 @@ def plot_angles_3d(image, vectors=None, means=None, mip=False, border_color=None
 
     for i in range(3):
         if vectors is not None:
-            plot_angles(image=I_ortho[i], angles=angles_2d[i], means=mu_2d[i], mean_colors=mean_colors,\
+            fig = plot_angles(image=I_ortho[i], angles=angles_2d[i], means=mu_2d[i], mean_colors=mean_colors,\
                         axes_coords=axes_coords_list[i], fig=fig, show=False, title=None, xlabel=xlabels[i],\
                         ylabel=ylabels[i], border_color=border_color, hist_color=hist_color)
         else:
-            plot_angles(image=I_ortho[i], means=mu_2d[i], mean_colors=mean_colors, axes_coords=axes_coords_list[i],\
+            fig = plot_angles(image=I_ortho[i], means=mu_2d[i], mean_colors=mean_colors, axes_coords=axes_coords_list[i],\
                         fig=fig, show=False, title=None, xlabel=xlabels[i], ylabel=ylabels[i], border_color=border_color)
 
-    plt.show()
+    # plt.show()
 
     return fig
